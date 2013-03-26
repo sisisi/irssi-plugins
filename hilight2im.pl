@@ -1,35 +1,38 @@
+#!/usr/bin/env perl
+ 
 use strict;
 use warnings;
-
-use Glib;
-
-use Irssi;
+ 
+use AnyEvent::Twitter::Stream;
 use AnyEvent::HTTP;
-
 use HTTP::Request::Common;
-
-our $VERSION = '0.1';
-
-our %IRSSI = (
-    name        => 'hilight2im',
-    description => 'notify hilight message to IM via im.kayac.com api',
-    authors     => 'Daisuke Murase',
-);
-
-sub sig_printtext {
-    my ($dest, $text, $stripped) = @_;
-
-    if ( $dest->{level} & MSGLEVEL_HILIGHT ) {
-        my $user = Irssi::settings_get_str('im_kayac_com_username') or return;
-        my $msg  = sprintf('[irssi] %s %s', $dest->{target}, $stripped);
-
-        my $req = POST "http://im.kayac.com/api/post/$user", [ message => $msg ];
+ 
+my $done = AnyEvent->condvar;
+ 
+my $streamer = AnyEvent::Twitter::Stream->new(
+    username => '___silver',
+    password => 'silver_0123_69',
+    method => 'filter',
+    track => '@twitter_username',
+    on_tweet => sub {
+        my $tweet = shift;
+        my $req = POST 'http://im.kayac.com/api/post/si', [
+            message => "$tweet->{user}{screen_name}: $tweet->{text}",
+            password => 'silver0123R',
+        ];
+ 
         my %headers = map { $_ => $req->header($_), } $req->headers->header_field_names;
-
         my $r;
-        $r = http_post $req->uri, $req->content, headers => \%headers, sub { undef $r };
-    }
-}
-
-Irssi::signal_add('print text' => \&sig_printtext);
-Irssi::settings_add_str('im_kayac_com', 'im_kayac_com_username', '');
+        $r = http_post $req->uri, $req->content, handler => 'SOICHA://', sub { undef $r };
+    },
+    on_error => sub {
+        my $error = shift;
+        warn "ERROR: $error";
+        $done->send;
+    },
+    on_eof => sub {
+        $done->send;
+    },
+);
+ 
+$done->recv;
